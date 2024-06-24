@@ -381,7 +381,7 @@ def plot_engineering_ladders(engineers: list[Engineer] | Engineer, size: str = N
     ).update_traces(fill='toself', opacity=max(0.5, 1/len(engineers))) # this seems to break hovering
     
     # fig
-    fig = style_polar_figure_axes(fig, titlefontsize=None if size == "sm" else 30)
+    fig = style_polar_figure_axes(fig, titlefontsize=None if size == "sm" else 20)
     if size == "sm":
         #fig.update_traces(textfont=go.scatterpolar.Textfont(size=7))
         fig.update_traces(visible="legendonly", selector=lambda trace: trace.name == "Levels")
@@ -396,14 +396,6 @@ def plot_engineering_ladders(engineers: list[Engineer] | Engineer, size: str = N
         ))
 
     return fig
-
-# %%
-fig = plot_engineering_ladders(engineering_manager_levels, template="plotly_dark", height=300, size="sm")#, text="name")
-fig
-
-# %%
-fig = plot_engineering_ladders(developer_levels[2], template="plotly_dark", size="sm", text="name", height=300)
-fig
 
 # %% [markdown]
 # ## Using It
@@ -480,7 +472,7 @@ def generate_table(dataframe):
                 html.Td(dbc.Button(level, size="sm", id={"type":"level", "index":level, "column": col}) if (level:=dataframe.iloc[i][col]) and col not in ["Level","Senior"] else level) for col in dataframe.columns
             ]) for i in range(len(dataframe))
         ])
-    ], bordered=True, size="sm")
+    ], bordered=True, size="sm", responsive="lg")
 
 
 # Create the DataFrame
@@ -491,7 +483,7 @@ data = {
     "Tech Lead": ["", "", "", "TL4", "TL5", "TL6", "TL7"],
     "Technical Program Manager": ["", "", "", "TPM4", "TPM5", "TPM6", "TPM7"],
     "Engineering Manager": ["", "", "", "", "EM5", "EM6", "EM7"],
-    dbc.Button("+",id="add_ladder"): ["" for _ in range(7)]
+    dbc.Button("+",id="add-ladder"): ["" for _ in range(7)]
 }
 
 table = generate_table(pd.DataFrame(data))
@@ -523,6 +515,19 @@ The framework relies heavily on radar charts to visually represent the different
 """
 
 # %%
+getting_started = html.Div(
+        [
+            html.H2("Start Exploring!", className="display-3"),
+            html.Hr(className="my-2"),
+            html.P(
+                "Explore career ladders and their progressions by clicking in the adjacent table"
+            ),
+            dbc.Button("Discover Your Ladder", href="#My-Ladder", color="secondary", outline=True),
+        ],
+        className="h-100 p-5 text-white bg-primary rounded-3",
+    )
+
+# %%
 app = Dash(title="Engineering Ladders", external_stylesheets=[dbc.themes.MATERIA, dbc.icons.FONT_AWESOME])
 
 app.layout = html.Div([
@@ -539,10 +544,10 @@ app.layout = html.Div([
             html.H2("Career Ladders", id="Career-Ladders"),
             dbc.Col([
                 table  
-            ], width=6),
+            ], md=6),
             dbc.Col([
-                html.Div(id="viewport") 
-            ], width=6)
+                html.Div(getting_started,id="viewport") 
+            ], md=6)
 
         ]),
         html.Hr(),
@@ -556,27 +561,44 @@ app.layout = html.Div([
                         dcc.Slider(marks={level.value: {
                             "label": level.name.title(), 
                             "style":{
-                                "font-size":10, 
+                                "fontSize":15, 
                                 "transform": "rotate(30deg)translate(-25%,50%)",
                                 #"transform":"rotate(-75deg)",
                                 #"writing-mode": "vertical-rl",
                             }
                             } for level in ladder}, min=1, max=5, id={"type":"ladder_slider", "index":ladder.__name__}, value=1, step=1)
-                    ])
+                    ], className="pb-1")
                     ]) for ladder in ATTRIBUTES
                 ],
                 dcc.Markdown(id="summary-markdown"),
                 # dcc.Markdown(engineering_ladders_faqs_markdown),
-            ], width=3),
-            dbc.Col([dbc.Row(dbc.Col(
-                dbc.Button(children=dbc.Label(className="fa fa-arrow-right fa-3x"), id="right_arrow"), className="align-middle"
-                ), align="center", className="h-100")], width=1),
+            ], xs=11, md=3),
             dbc.Col([
-                dcc.Graph(figure=None, id="figure")
-            ], width=8)
+                dbc.Row(
+                    dbc.Col(
+                        dbc.Button(children=dbc.Label(className="fa fa-arrow-right fa-3x"), id="right_arrow", className="align-middle"),
+                        )
+
+                    , align="center", className="h-100"),
+            ], width=1),
+            dbc.Col([
+                        dcc.Graph(figure=None, id="figure")
+                    ], md=8)
+            ])
         ])
     ])
-])
+
+@app.callback(
+    Output("viewport", "children", allow_duplicate=True),
+    Input("add-ladder", "n_clicks"),
+    prevent_initial_call=True,
+)
+def add_ladder_definition(_):
+    return dcc.ConfirmDialog(
+        id='confirm-danger',
+        message="Oops! I haven't been implemented yet ... please vote for this feature in GitHub 😊",
+        displayed=True
+    )
 
 @app.callback(
     Output("figure","figure"),
@@ -590,8 +612,12 @@ def update_my_ladder_plot(ids, values, light): # TODO only redraw the trace for 
     me = Engineer(**sliders, title="me")
     ladders_fig = plot_engineering_ladders([me,*levels_near(me, n=3)],template="plotly_dark" if not light else "plotly")
     ladders_fig.update_layout(legend=dict(
+        orientation="h",
         yanchor="bottom",
-        y=0.9,
+        yref="container",
+        xanchor="center",
+        x=0.5,
+        y=0,
         title="Levels",
     ))
 
@@ -605,6 +631,7 @@ def update_my_ladder_plot(ids, values, light): # TODO only redraw the trace for 
     Output("viewport", "children"),
     Input(component_id={"type":"level", "index": ALL,  "column": ALL}, component_property="n_clicks"),
     Input("switch", "value"),
+    prevent_initial_call=True,    
 )
 def click_table(_, light):
     if (button_clicked:= ctx.triggered_id) and button_clicked != "switch":
@@ -615,8 +642,9 @@ def click_table(_, light):
         figure = plot_engineering_ladders(engineer, size="sm", color=None, text="name", template="plotly" if light else "plotly_dark")
         #figure = plot_engineering_ladders(engineer, size="sm", symbol="title_short")
         graph = dcc.Graph(figure=figure)
-        view = [dbc.Row([dcc.Markdown(f"## {engineer.title}")]), dbc.Row([dbc.Col(bullets), dbc.Col(graph)])]
+        view = [dbc.Row([dcc.Markdown(f"## {engineer.title}")]), dbc.Row([dbc.Col(bullets, xl=6), dbc.Col(graph, xl=6)])]
         return view
+
 app.clientside_callback(
     """
     (switchOn) => {
@@ -629,12 +657,9 @@ app.clientside_callback(
 )
 
 if __name__ == "__main__":
-    app.run(debug=True, jupyter_mode="external")
+    app.run(debug=True, jupyter_mode="external", host="0.0.0.0")
 else: #gunicorn
     app = app.server
-
-# %%
-
 
 # %% [markdown]
 # ### TODO:
